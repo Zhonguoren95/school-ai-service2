@@ -1,48 +1,27 @@
 import streamlit as st
-import pandas as pd
-import traceback
+from core import process_documents
 
-st.set_page_config(page_title="AI-сервис подбора оборудования")
+st.set_page_config(page_title="AI-сервис подбора оборудования", layout="wide")
 
-st.markdown("## 🧑‍💻 AI-сервис подбора оборудования")
-st.markdown("""
-Загрузите техническое задание и прайс-листы — система всё сделает сама.
-""")
+st.markdown("<h1 style='font-size: 36px;'>🤖 AI-сервис подбора оборудования</h1>", unsafe_allow_html=True)
+st.write("Загрузите техническое задание, прайс-листы и (опционально) файл со скидками — система всё сделает сама.")
 
-try:
-    # --- ТЗ ---
-    st.subheader(":bookmark_tabs: Техническое задание")
-    tz_file = st.file_uploader("Загрузите файл с ТЗ (PDF, DOCX)", type=["pdf", "docx"])
+uploaded_spec = st.file_uploader("📄 Техническое задание (PDF, DOCX)", type=["pdf", "docx"])
+uploaded_prices = st.file_uploader("📊 Прайсы поставщиков (XLSX)", type=["xlsx"], accept_multiple_files=True)
+uploaded_discounts = st.file_uploader("💸 Скидки от поставщиков (XLSX, необязательно)", type=["xlsx"])
 
-    # --- Прайсы ---
-    st.subheader(":bar_chart: Прайсы поставщиков")
-    price_files = st.file_uploader("Загрузите 1 или несколько прайсов (Excel)", type=["xlsx"], accept_multiple_files=True)
+if st.button("🚀 Запустить подбор"):
+    if uploaded_spec and uploaded_prices:
+        with st.spinner("Обработка..."):
+            result_df, recognized_text = process_documents(uploaded_spec, uploaded_prices, uploaded_discounts)
+        st.success("Готово!")
 
-    # --- Скидки ---
-    st.subheader(":money_with_wings: Скидки от поставщиков (по желанию)")
-    discount_file = st.file_uploader("Файл со скидками (Excel)", type=["xlsx"])
+        st.subheader("📝 Распознанный текст из ТЗ")
+        st.text_area("Текст ТЗ", recognized_text, height=200)
 
-    # --- Кнопка запуска ---
-    if st.button("Запустить подбор"):
-        st.success("Файлы получены! Идёт обработка...")
+        st.subheader("📋 Объединённый прайс-лист")
+        st.dataframe(result_df)
 
-        if tz_file is not None:
-            st.write("Файл ТЗ:", tz_file.name)
-        else:
-            st.warning("Файл ТЗ не загружен")
-
-        if price_files:
-            st.write(f"Загружено прайсов: {len(price_files)}")
-        else:
-            st.warning("Нет прайсов для анализа")
-
-        if discount_file:
-            st.write("Загружен файл со скидками:", discount_file.name)
-
-        # ВРЕМЕННО: заглушка до полной логики обработки
-        st.info("Обработка временно отключена. Интерфейс работает корректно.")
-
-except Exception as e:
-    st.error("Произошла ошибка:")
-    st.code(traceback.format_exc())
-
+        st.download_button("📥 Скачать результат в Excel", data=result_df.to_excel(index=False), file_name="результат.xlsx")
+    else:
+        st.warning("Загрузите
