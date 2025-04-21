@@ -91,3 +91,4 @@ def process_documents(ts_file, price_files, discount_file=None):
     result_df = find_matches(requirements_df, price_df, discounts)
     result_file = fill_result_template(result_df, "Форма для результата.xlsx")
     return ts_text, result_df, result_file
+
