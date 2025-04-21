@@ -91,4 +91,159 @@ def process_documents(ts_file, price_files, discount_file=None):
     result_df = find_matches(requirements_df, price_df, discounts)
     result_file = fill_result_template(result_df, "Форма для результата.xlsx")
     return ts_text, result_df, result_file
+def process_documents(spec_file, prices_files, discounts_file=None):
+    from io import BytesIO
+    import pandas as pd
+    from openpyxl import load_workbook
+    from difflib import SequenceMatcher
+
+    # 1. Распознать текст из ТЗ
+    ts_text = extract_text_from_pdf(spec_file)
+    ts_df = parse_requirements(ts_text)
+
+    # 2. Загрузить прайсы
+    price_df = load_price_list(prices_files)
+
+    # 3. Загрузить скидки
+    discounts = {}
+    if discounts_file is not None:
+        df = pd.read_excel(discounts_file)
+        for _, row in df.iterrows():
+            supplier = str(row[0]).strip()
+            try:
+                discount = float(row[1])
+                discounts[supplier] = discount
+            except:
+                pass
+
+    # 4. Поиск совпадений
+    results = []
+    for _, row in ts_df.iterrows():
+        name = row["Наименование"]
+        qty = row["Кол-во"]
+
+        # Поиск похожих позиций
+        matches = []
+        for _, p_row in price_df.iterrows():
+            pname = str(p_row["Наименование"]).lower()
+            score = SequenceMatcher(None, name.lower(), pname).ratio()
+            if score > 0.4:
+                matches.append((score, p_row))
+
+        matches = sorted(matches, key=lambda x: -x[0])[:3]  # топ-3
+
+        item = {
+            "Наименование из ТЗ": name,
+            "Кол-во": qty,
+        }
+
+        for i, (score, match_row) in enumerate(matches):
+            price = match_row["Цена"]
+            supplier = match_row.get("Поставщик", f"Поставщик {i+1}")
+            discount = discounts.get(supplier, 0)
+            final_price = round(price * (1 - discount / 100), 2) if price else ""
+
+            item[f"Поставщик {i+1}"] = supplier
+            item[f"Цена {i+1}"] = price
+            item[f"Скидка {i+1}"] = f"{discount}%"
+            item[f"Итог {i+1}"] = final_price
+
+        results.append(item)
+
+    result_df = pd.DataFrame(results)
+
+    # 5. Записать в Excel
+    template = "Форма для результата.xlsx"
+    wb = load_workbook(template)
+    ws = wb.active
+
+    start_row = 10
+    for i, row in result_df.iterrows():
+        ws.cell(row=start_row + i, column=1, value=i + 1)
+        ws.cell(row=start_row + i, column=2, value=row["Наименование из ТЗ"])
+        ws.cell(row=start_row + i, column=3, value=row["Кол-во"])
+        ws.cell(row=start_row + i, column=4, value=row.get("Поставщик 1"))
+        ws.cell(row=start_row + i, column=5, value=row.get("Цена 1"))
+        ws.cell(row=start_row + i, column=6, value=row.get("Скидка 1"))
+        ws.cell(row=start_row + i, column=7, value=row.get("Итог 1")
+   def process_documents(spec_file, prices_files, discounts_file=None):
+    from io import BytesIO
+    import pandas as pd
+    from openpyxl import load_workbook
+    from difflib import SequenceMatcher
+
+    # 1. Распознать текст из ТЗ
+    ts_text = extract_text_from_pdf(spec_file)
+    ts_df = parse_requirements(ts_text)
+
+    # 2. Загрузить прайсы
+    price_df = load_price_list(prices_files)
+
+    # 3. Загрузить скидки
+    discounts = {}
+    if discounts_file is not None:
+        df = pd.read_excel(discounts_file)
+        for _, row in df.iterrows():
+            supplier = str(row[0]).strip()
+            try:
+                discount = float(row[1])
+                discounts[supplier] = discount
+            except:
+                pass
+
+    # 4. Поиск совпадений
+    results = []
+    for _, row in ts_df.iterrows():
+        name = row["Наименование"]
+        qty = row["Кол-во"]
+
+        # Поиск похожих позиций
+        matches = []
+        for _, p_row in price_df.iterrows():
+            pname = str(p_row["Наименование"]).lower()
+            score = SequenceMatcher(None, name.lower(), pname).ratio()
+            if score > 0.4:
+                matches.append((score, p_row))
+
+        matches = sorted(matches, key=lambda x: -x[0])[:3]  # топ-3
+
+        item = {
+            "Наименование из ТЗ": name,
+            "Кол-во": qty,
+        }
+
+        for i, (score, match_row) in enumerate(matches):
+            price = match_row["Цена"]
+            supplier = match_row.get("Поставщик", f"Поставщик {i+1}")
+            discount = discounts.get(supplier, 0)
+            final_price = round(price * (1 - discount / 100), 2) if price else ""
+
+            item[f"Поставщик {i+1}"] = supplier
+            item[f"Цена {i+1}"] = price
+            item[f"Скидка {i+1}"] = f"{discount}%"
+            item[f"Итог {i+1}"] = final_price
+
+        results.append(item)
+
+    result_df = pd.DataFrame(results)
+
+    # 5. Записать в Excel
+    template = "Форма для результата.xlsx"
+    wb = load_workbook(template)
+    ws = wb.active
+
+    start_row = 10
+    for i, row in result_df.iterrows():
+        ws.cell(row=start_row + i, column=1, value=i + 1)
+        ws.cell(row=start_row + i, column=2, value=row["Наименование из ТЗ"])
+        ws.cell(row=start_row + i, column=3, value=row["Кол-во"])
+        ws.cell(row=start_row + i, column=4, value=row.get("Поставщик 1"))
+        ws.cell(row=start_row + i, column=5, value=row.get("Цена 1"))
+        ws.cell(row=start_row + i, column=6, value=row.get("Скидка 1"))
+        ws.cell(row=start_row + i, column=7, value=row.get("Итог 1"))
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    return ts_text, result_df, output.read()
 
