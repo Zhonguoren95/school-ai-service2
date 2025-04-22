@@ -1,28 +1,25 @@
-# Используем официальный Python-образ
-FROM python:3.10-slim
+FROM python:3.11-slim
 
-# Устанавливаем системные зависимости
+# Устанавливаем зависимости
 RUN apt-get update && apt-get install -y \
     tesseract-ocr \
     poppler-utils \
+    build-essential \
+    libpoppler-cpp-dev \
     libglib2.0-0 \
-    libsm6 \
-    libxrender1 \
-    libxext6 \
-    libgl1-mesa-glx \
-    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Устанавливаем зависимости Python
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Копируем проект
-COPY . /app
+# Устанавливаем рабочую директорию
 WORKDIR /app
 
-# Открываем порт для Streamlit
+# Копируем файлы проекта
+COPY . .
+
+# Устанавливаем зависимости Python
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Указываем порт для Streamlit
 EXPOSE 8501
 
-# Запуск Streamlit
-CMD ["streamlit", "run", "streamlit_interface.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# Команда запуска Streamlit
+CMD ["streamlit", "run", "main.py", "--server.port=8501", "--server.enableCORS=false"]
