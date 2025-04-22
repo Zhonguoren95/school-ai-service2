@@ -13,22 +13,25 @@ uploaded_discounts = st.file_uploader("💸 Скидки от поставщик
 
 if st.button("🚀 Запустить подбор"):
     if uploaded_spec and uploaded_prices:
-        with st.spinner("🔄 Обработка данных..."):
-            ts_text, result_df, result_file = process_documents(uploaded_spec, uploaded_prices, uploaded_discounts)
+        try:
+            with st.spinner("🔄 Обработка данных..."):
+                ts_text, result_df, result_file = process_documents(uploaded_spec, uploaded_prices, uploaded_discounts)
 
-        st.success("✅ Подбор завершён!")
+            st.success("✅ Подбор завершён!")
 
-        st.subheader("📄 Распознанный текст из ТЗ")
-        st.text_area("Текст ТЗ (первые 1000 символов)", ts_text[:1000], height=200)
+            st.subheader("📄 Распознанный текст из ТЗ")
+            st.text_area("Текст ТЗ (первые 1000 символов)", ts_text[:1000], height=200)
 
-        st.subheader("📋 Результаты подбора")
-        st.dataframe(result_df, use_container_width=True)
+            st.subheader("📋 Результаты подбора")
+            st.dataframe(result_df, use_container_width=True)
 
-        st.download_button(
-            label="📥 Скачать Excel",
-            data=result_file,
-            file_name="Результат_подбора.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+            st.download_button(
+                label="📥 Скачать Excel",
+                data=result_file,
+                file_name="Результат_подбора.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+        except Exception as e:
+            st.error(f"❌ Произошла ошибка при обработке: {e}")
     else:
         st.warning("❗ Пожалуйста, загрузите и ТЗ, и хотя бы один прайс-лист.")
