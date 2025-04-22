@@ -66,7 +66,7 @@ def load_discounts(file):
 
 def process_documents(spec_file, prices_files, discounts_file=None):
     text = extract_text_from_pdf(spec_file)
-    ts_text = text[:1000]
+    ts_text = text[:1000] if text else "(Текст не найден)"
     spec_df = parse_requirements(text)
     prices_df = load_price_list(prices_files)
     discounts = load_discounts(discounts_file) if discounts_file else {}
