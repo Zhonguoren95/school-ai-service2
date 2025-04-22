@@ -3,34 +3,18 @@ import pdfplumber
 import re
 from openpyxl import load_workbook
 from io import BytesIO
-from pdf2image import convert_from_bytes
-import pytesseract
-from PIL import Image
+
 import streamlit as st
+from pdf2image import convert_from_bytes
 
 def extract_text_from_pdf(file):
     text = ""
     try:
         with pdfplumber.open(file) as pdf:
             for page in pdf.pages:
-                page_text = page.extract_text()
-                if page_text:
-                    text += page_text + "\n"
-
-        if not text.strip():
-            st.write("📷 Переход на OCR: текст не найден через pdfplumber")
-            file.seek(0)
-            images = convert_from_bytes(file.read(), dpi=300)
-            ocr_text = ""
-            for img in images:
-                ocr_text += pytesseract.image_to_string(img, lang="rus") + "\n"
-            if not ocr_text.strip():
-                raise ValueError("Не удалось распознать текст даже через OCR.")
-            text = ocr_text
-
+                text += page.extract_text() + "\n"
     except Exception as e:
-        raise ValueError(f"Ошибка при извлечении текста из PDF: {e}")
-
+        st.error(f"Ошибка при извлечении текста из PDF: {e}")
     return text
 
 def parse_requirements(text):
@@ -44,8 +28,9 @@ def parse_requirements(text):
                 quantity = re.search(r"\d+", parts[1])
                 quantity = quantity.group() if quantity else ""
                 rows.append({"Наименование из ТЗ": name, "Кол-во": quantity})
-    st.write(f"📄 Распознано строк в ТЗ: {len(rows)}")
-    return pd.DataFrame(rows)
+    df = pd.DataFrame(rows)
+    st.write(f"Обнаружено позиций в ТЗ: {len(df)}")
+    return df
 
 def load_price_list(files):
     all_items = []
@@ -61,41 +46,40 @@ def load_price_list(files):
                     }
                     all_items.append(item)
                     break
-    st.write(f"📊 Загружено позиций из прайсов: {len(all_items)}")
     return pd.DataFrame(all_items)
 
 def load_discounts(file):
-    df = pd.read_excel(file)
-    discounts = dict(zip(df.iloc[:, 0], df.iloc[:, 1]))
-    st.write(f"💸 Считано скидок: {len(discounts)}")
-    return discounts
+    try:
+        df = pd.read_excel(file)
+        discounts = dict(zip(df.iloc[:, 0], df.iloc[:, 1]))
+        st.write(f"Загружено скидок: {len(discounts)}")
+        return discounts
+    except Exception as e:
+        st.error(f"Ошибка при загрузке скидок: {e}")
+        return {}
 
 def process_documents(spec_file, prices_files, discounts_file=None):
-    st.write("🔍 Чтение и распознавание ТЗ...")
     text = extract_text_from_pdf(spec_file)
-    ts_text = text[:1000] if text else "(Текст не найден)"
+    st.text_area("Извлечённый текст ТЗ (первые 1000 символов)", text[:1000])
 
-    st.write("📑 Парсинг строк из ТЗ...")
-    spec_df = parse_requirements(text)
+    requirements_df = parse_requirements(text)
+    if requirements_df.empty:
+        st.warning("Не удалось распознать ни одной позиции в ТЗ. Проверьте файл.")
+        return text, pd.DataFrame(), BytesIO()
 
-    st.write("📥 Загрузка прайсов...")
     prices_df = load_price_list(prices_files)
+    discounts = load_discounts(discounts_file) if discounts_file else {}
 
-    discounts = {}
-    if discounts_file:
-        st.write("💼 Загрузка скидок...")
-        discounts = load_discounts(discounts_file)
-
-    st.write("🔄 Сопоставление позиций...")
     results = []
-    for _, row in spec_df.iterrows():
-        name = row["Наименование из ТЗ"]
-        qty = row["Кол-во"]
-        matches = prices_df[prices_df["Наименование"].str.contains(name.split()[0], case=False, na=False)].head(3)
+    for _, req_row in requirements_df.iterrows():
+        name = req_row["Наименование из ТЗ"]
+        qty = req_row["Кол-во"]
+
+        matches = prices_df[prices_df["Наименование"].str.contains(name.split()[0], case=False, na=False)].sort_values("Цена")[:3]
 
         item = {
             "Наименование из ТЗ": name,
-            "Кол-во": qty
+            "Кол-во": qty,
         }
 
         for i, (_, match_row) in enumerate(matches.iterrows()):
@@ -112,9 +96,8 @@ def process_documents(spec_file, prices_files, discounts_file=None):
         results.append(item)
 
     result_df = pd.DataFrame(results)
-    st.write(f"✅ Готово! Совпадений: {len(result_df)} строк")
 
-    st.write("📤 Формирование Excel-файла...")
+    # Формируем Excel
     template = "Форма для результата.xlsx"
     wb = load_workbook(template)
     ws = wb.active
@@ -133,4 +116,4 @@ def process_documents(spec_file, prices_files, discounts_file=None):
     wb.save(output)
     output.seek(0)
 
-    return ts_text, result_df, output.read()
+    return text, result_df, output.read()
