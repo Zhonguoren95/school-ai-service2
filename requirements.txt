@@ -1,8 +1,7 @@
 streamlit
-pandas
-openpyxl
-pdfplumber
 pytesseract
-pdf2image
-Pillow
+pandas
+fitz
+PyMuPDF
+openpyxl
 
