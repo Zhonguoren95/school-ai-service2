@@ -1,25 +1,19 @@
-FROM python:3.11-slim
+FROM python:3.10-slim
 
-# Устанавливаем зависимости
-RUN apt-get update && apt-get install -y \
-    tesseract-ocr \
-    poppler-utils \
-    build-essential \
-    libpoppler-cpp-dev \
-    libglib2.0-0 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Устанавливаем рабочую директорию
-WORKDIR /app
+# Установка зависимостей системы
+RUN apt-get update && \
+    apt-get install -y tesseract-ocr poppler-utils && \
+    apt-get clean
 
 # Копируем файлы проекта
-COPY . .
+WORKDIR /app
+COPY . /app
 
-# Устанавливаем зависимости Python
+# Установка зависимостей Python
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Указываем порт для Streamlit
+# Порт
 EXPOSE 8501
 
-# Команда запуска Streamlit
-CMD ["streamlit", "run", "main.py", "--server.port=8501", "--server.enableCORS=false"]
+# Запуск Streamlit
+CMD ["streamlit", "run", "streamlit_interface.py"]
