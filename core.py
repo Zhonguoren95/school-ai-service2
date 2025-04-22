@@ -3,12 +3,32 @@ import pdfplumber
 import re
 from openpyxl import load_workbook
 from io import BytesIO
+from pdf2image import convert_from_bytes
+import pytesseract
+from PIL import Image
 
 def extract_text_from_pdf(file):
     text = ""
-    with pdfplumber.open(file) as pdf:
-        for page in pdf.pages:
-            text += page.extract_text() + "\n"
+    try:
+        with pdfplumber.open(file) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + "\n"
+
+        if not text.strip():
+            file.seek(0)
+            images = convert_from_bytes(file.read(), dpi=300)
+            ocr_text = ""
+            for img in images:
+                ocr_text += pytesseract.image_to_string(img, lang="rus") + "\n"
+            if not ocr_text.strip():
+                raise ValueError("Не удалось распознать текст даже через OCR.")
+            text = ocr_text
+
+    except Exception as e:
+        raise ValueError(f"Ошибка при извлечении текста из PDF: {e}")
+
     return text
 
 def parse_requirements(text):
@@ -77,7 +97,6 @@ def process_documents(spec_file, prices_files, discounts_file=None):
 
     result_df = pd.DataFrame(results)
 
-    # Формирование Excel
     template = "Форма для результата.xlsx"
     wb = load_workbook(template)
     ws = wb.active
