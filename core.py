@@ -6,6 +6,7 @@ from io import BytesIO
 from pdf2image import convert_from_bytes
 import pytesseract
 from PIL import Image
+import streamlit as st
 
 def extract_text_from_pdf(file):
     text = ""
@@ -17,6 +18,7 @@ def extract_text_from_pdf(file):
                     text += page_text + "\n"
 
         if not text.strip():
+            st.write("📷 Переход на OCR: текст не найден через pdfplumber")
             file.seek(0)
             images = convert_from_bytes(file.read(), dpi=300)
             ocr_text = ""
@@ -42,6 +44,7 @@ def parse_requirements(text):
                 quantity = re.search(r"\d+", parts[1])
                 quantity = quantity.group() if quantity else ""
                 rows.append({"Наименование из ТЗ": name, "Кол-во": quantity})
+    st.write(f"📄 Распознано строк в ТЗ: {len(rows)}")
     return pd.DataFrame(rows)
 
 def load_price_list(files):
@@ -58,19 +61,32 @@ def load_price_list(files):
                     }
                     all_items.append(item)
                     break
+    st.write(f"📊 Загружено позиций из прайсов: {len(all_items)}")
     return pd.DataFrame(all_items)
 
 def load_discounts(file):
     df = pd.read_excel(file)
-    return dict(zip(df.iloc[:, 0], df.iloc[:, 1]))
+    discounts = dict(zip(df.iloc[:, 0], df.iloc[:, 1]))
+    st.write(f"💸 Считано скидок: {len(discounts)}")
+    return discounts
 
 def process_documents(spec_file, prices_files, discounts_file=None):
+    st.write("🔍 Чтение и распознавание ТЗ...")
     text = extract_text_from_pdf(spec_file)
     ts_text = text[:1000] if text else "(Текст не найден)"
-    spec_df = parse_requirements(text)
-    prices_df = load_price_list(prices_files)
-    discounts = load_discounts(discounts_file) if discounts_file else {}
 
+    st.write("📑 Парсинг строк из ТЗ...")
+    spec_df = parse_requirements(text)
+
+    st.write("📥 Загрузка прайсов...")
+    prices_df = load_price_list(prices_files)
+
+    discounts = {}
+    if discounts_file:
+        st.write("💼 Загрузка скидок...")
+        discounts = load_discounts(discounts_file)
+
+    st.write("🔄 Сопоставление позиций...")
     results = []
     for _, row in spec_df.iterrows():
         name = row["Наименование из ТЗ"]
@@ -96,7 +112,9 @@ def process_documents(spec_file, prices_files, discounts_file=None):
         results.append(item)
 
     result_df = pd.DataFrame(results)
+    st.write(f"✅ Готово! Совпадений: {len(result_df)} строк")
 
+    st.write("📤 Формирование Excel-файла...")
     template = "Форма для результата.xlsx"
     wb = load_workbook(template)
     ws = wb.active
