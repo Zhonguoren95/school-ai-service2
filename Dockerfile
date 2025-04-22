@@ -1,19 +1,25 @@
 FROM python:3.10-slim
 
-# Установка зависимостей системы
+# Установка системных зависимостей
 RUN apt-get update && \
-    apt-get install -y tesseract-ocr poppler-utils && \
-    apt-get clean
+    apt-get install -y \
+    tesseract-ocr \
+    poppler-utils \
+    libjpeg-dev \
+    gcc \
+    && apt-get clean
 
-# Копируем файлы проекта
+# Рабочая директория
 WORKDIR /app
+
+# Копирование всех файлов проекта
 COPY . /app
 
-# Установка зависимостей Python
+# Установка Python-зависимостей
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Порт
+# Открываемый порт
 EXPOSE 8501
 
-# Запуск Streamlit
+# Команда запуска Streamlit
 CMD ["streamlit", "run", "streamlit_interface.py"]
