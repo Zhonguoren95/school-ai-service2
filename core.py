@@ -46,7 +46,7 @@ def load_discounts(file):
 
 def process_documents(spec_file, prices_files, discounts_file=None):
     text = extract_text_from_pdf(spec_file)
-    ts_text = text[:1000]  # первые 1000 символов
+    ts_text = text[:1000]
     spec_df = parse_requirements(text)
     prices_df = load_price_list(prices_files)
     discounts = load_discounts(discounts_file) if discounts_file else {}
@@ -77,7 +77,7 @@ def process_documents(spec_file, prices_files, discounts_file=None):
 
     result_df = pd.DataFrame(results)
 
-    # Формирование Excel-выхода
+    # Формирование Excel
     template = "Форма для результата.xlsx"
     wb = load_workbook(template)
     ws = wb.active
