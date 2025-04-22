@@ -1,14 +1,9 @@
-# ✅ Новый рабочий код без pytesseract (OCR временно отключён)
-# Используется pdfplumber для извлечения текста из PDF
-
-import streamlit as st
 import pandas as pd
 import pdfplumber
 import re
 from openpyxl import load_workbook
 from io import BytesIO
 
-# --- Функции ---
 def extract_text_from_pdf(file):
     text = ""
     with pdfplumber.open(file) as pdf:
@@ -35,9 +30,9 @@ def load_price_list(files):
         df = pd.read_excel(file, header=None)
         for index, row in df.iterrows():
             for col in row:
-                if isinstance(col, str) and any(word in col.lower() for word in ["стол", "кресло", "лампа", "шкаф", "банкетка", "барьер"]):
+                if isinstance(col, str) and any(keyword in col.lower() for keyword in ["стол", "кресло", "лампа", "шкаф", "банкетка", "барьер"]):
                     item = {
-                        "Артикул": row[0] if len(row) > 0 else "",
+                        "Артикул": row[0] if len(row) > 1 else "",
                         "Наименование": col,
                         "Цена": next((v for v in row if isinstance(v, (int, float))), "")
                     }
@@ -45,31 +40,48 @@ def load_price_list(files):
                     break
     return pd.DataFrame(all_items)
 
-def process_documents(spec_file, prices_files):
+def load_discounts(file):
+    df = pd.read_excel(file)
+    return dict(zip(df.iloc[:, 0], df.iloc[:, 1]))
+
+def process_documents(spec_file, prices_files, discounts_file=None):
     text = extract_text_from_pdf(spec_file)
-    ts_df = parse_requirements(text)
+    ts_text = text[:1000]  # первые 1000 символов
+    spec_df = parse_requirements(text)
     prices_df = load_price_list(prices_files)
+    discounts = load_discounts(discounts_file) if discounts_file else {}
 
     results = []
-    for _, row in ts_df.iterrows():
+    for _, row in spec_df.iterrows():
         name = row["Наименование из ТЗ"]
         qty = row["Кол-во"]
-        match = prices_df[prices_df["Наименование"].str.contains(name.split()[0], case=False, na=False)]
-        match = match.head(3)
+        matches = prices_df[prices_df["Наименование"].str.contains(name.split()[0], case=False, na=False)].head(3)
+
         item = {
             "Наименование из ТЗ": name,
             "Кол-во": qty
         }
-        for i, (_, mrow) in enumerate(match.iterrows(), start=1):
-            item[f"Поставщик {i}"] = "Прайс"
-            item[f"Цена {i}"] = mrow["Цена"]
+
+        for i, (_, match_row) in enumerate(matches.iterrows()):
+            price = match_row.get("Цена")
+            supplier = match_row.get("Поставщик", f"Поставщик {i+1}")
+            discount = discounts.get(supplier, 0)
+            final_price = round(price * (1 - discount / 100), 2) if price else ""
+
+            item[f"Поставщик {i+1}"] = supplier
+            item[f"Цена {i+1}"] = price
+            item[f"Скидка {i+1}"] = f"{discount}%"
+            item[f"Итог {i+1}"] = final_price
+
         results.append(item)
 
     result_df = pd.DataFrame(results)
 
-    # Загрузка шаблона Excel и заполнение
-    wb = load_workbook("Форма для результата.xlsx")
+    # Формирование Excel-выхода
+    template = "Форма для результата.xlsx"
+    wb = load_workbook(template)
     ws = wb.active
+
     start_row = 10
     for i, row in result_df.iterrows():
         ws.cell(row=start_row + i, column=1, value=i + 1)
@@ -77,36 +89,11 @@ def process_documents(spec_file, prices_files):
         ws.cell(row=start_row + i, column=3, value=row["Кол-во"])
         ws.cell(row=start_row + i, column=4, value=row.get("Поставщик 1"))
         ws.cell(row=start_row + i, column=5, value=row.get("Цена 1"))
+        ws.cell(row=start_row + i, column=6, value=row.get("Скидка 1"))
+        ws.cell(row=start_row + i, column=7, value=row.get("Итог 1"))
 
     output = BytesIO()
     wb.save(output)
     output.seek(0)
 
-    return text[:1000], result_df, output.read()
-
-# --- Интерфейс ---
-st.set_page_config(page_title="AI-сервис подбора оборудования", layout="wide")
-st.title("🤖 AI-сервис подбора оборудования")
-
-uploaded_spec = st.file_uploader("📄 Техническое задание (PDF)", type="pdf")
-uploaded_prices = st.file_uploader("📊 Прайсы поставщиков (XLSX)", type="xlsx", accept_multiple_files=True)
-
-if st.button("🚀 Запустить подбор"):
-    if uploaded_spec and uploaded_prices:
-        with st.spinner("🔄 Обработка данных..."):
-            ts_text, result_df, output_file = process_documents(uploaded_spec, uploaded_prices)
-        st.success("✅ Подбор завершён")
-        st.subheader("📑 Распознанный текст из ТЗ")
-        st.text_area("Текст ТЗ (первые 1000 символов)", ts_text, height=200)
-
-        st.subheader("📋 Результаты подбора")
-        st.dataframe(result_df, use_container_width=True)
-
-        st.download_button(
-            label="💾 Скачать Excel",
-            data=output_file,
-            file_name="Результат_подбора.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-    else:
-        st.warning("❗ Загрузите оба типа файлов: ТЗ и прайсы")
+    return ts_text, result_df, output.read()
